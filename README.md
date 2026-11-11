@@ -211,3 +211,9 @@ Python 3.11 · pandas · scikit-learn · LightGBM · Optuna · FastAPI · MLflow
 
 **Dados:** [InsideAirbnb](http://insideairbnb.com/) — Amsterdam, dezembro de 2018
 (20.030 anúncios, 96 colunas). Preços em euro.
+
+---
+
+## Licença
+
+GPL-3.0 — ver [LICENSE](LICENSE).
