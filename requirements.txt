@@ -1,0 +1,16 @@
+# Precificação de Diárias — Airbnb Amsterdam
+# Versões pinadas: pickle é sensível a versão de biblioteca.
+# Python 3.11.9
+
+pandas==2.3.3
+numpy==2.3.3
+scikit-learn==1.7.2
+lightgbm==4.7.0
+joblib==1.5.2
+scipy==1.16.2
+fastapi==0.141.1
+uvicorn==0.53.0
+pydantic==2.13.5
+mlflow==3.18.0
+pytest==9.2.0
+httpx==0.28.1
