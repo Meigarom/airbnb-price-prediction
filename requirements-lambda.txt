@@ -1,0 +1,23 @@
+# Dependências de RUNTIME da Lambda — subconjunto de requirements.txt.
+#
+# Ficam de fora, deliberadamente (plano 14 §6.1):
+#   mlflow   ~200 MB de dependências; só o treino usa
+#   pytest   desenvolvimento
+#   httpx    só o TestClient
+#   uvicorn  o Lambda não serve HTTP; quem faz isso é o Mangum
+#
+# Versões pinadas: pickle é sensível a versão de biblioteca, e o
+# artifacts.pkl carrega as versões do treino para a API conferir no startup.
+
+# Modelo e dados
+pandas==2.3.3
+numpy==2.3.3
+scikit-learn==1.7.2
+lightgbm==4.7.0
+joblib==1.5.2
+scipy==1.16.2
+
+# API
+fastapi==0.141.1
+pydantic==2.13.5
+mangum==0.22.0

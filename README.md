@@ -147,6 +147,31 @@ com `price_estimate: null` e um `status` explicando o motivo.
 pytest tests/ -v
 ```
 
+### Construir a imagem de produção
+
+Os artefatos (`app/models/*.pkl`) **não são versionados** — vivem no S3 e são
+embutidos na imagem durante o build. Antes de construir, obtenha-os:
+
+```bash
+# opção 1 — baixar do S3
+aws s3 cp s3://precificacao-airbnb-ams/models/v1/ app/models/ --recursive
+
+# opção 2 — gerar localmente
+python -m app.train
+```
+
+Depois:
+
+```bash
+docker build --platform linux/arm64 -t precificacao-airbnb:v1 .
+
+# testa o runtime do Lambda na porta 9000
+docker run --rm -p 9000:8080 precificacao-airbnb:v1
+```
+
+A imagem usa Python 3.12 (não 3.11): a base do 3.11 roda Amazon Linux 2 com
+glibc 2.26, e numpy/scipy modernos exigem glibc ≥ 2.28 para seus wheels.
+
 ---
 
 ## Decisões de projeto que merecem destaque

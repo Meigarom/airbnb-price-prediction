@@ -1,0 +1,32 @@
+# Mantém o contexto de build enxuto. Sem isto, o Docker enviaria os 471 MB
+# de data/ ao daemon a cada build, mesmo sem nenhum COPY usá-los.
+
+data/
+notebooks/
+docs/
+tests/
+mlruns/
+terraform/
+
+.git/
+.gitignore
+.gitattributes
+.github/
+
+.jupyter*
+.claude/
+.mcp.json
+.DS_Store
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# O runtime usa requirements-lambda.txt, não este
+requirements.txt
+
+CLAUDE.md
+README.md
