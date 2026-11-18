@@ -22,11 +22,16 @@ mlflow.db
 # Terraform — state pode conter valores sensíveis
 # ---------------------------------------------------------------------------
 .terraform/
-.terraform.lock.hcl
+tfplan
+*.tfplan
 *.tfstate
 *.tfstate.*
 *.tfvars
 !example.tfvars
+
+# .terraform.lock.hcl NÃO entra aqui de propósito: ele fixa os hashes dos
+# provedores, e versioná-lo é o que garante que CI e máquina local usem
+# exatamente o mesmo build. É o oposto do state — não guarda nada sensível.
 
 # ---------------------------------------------------------------------------
 # Segredos e credenciais
