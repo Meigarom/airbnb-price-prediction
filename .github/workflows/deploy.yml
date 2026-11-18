@@ -1,0 +1,150 @@
+# Deploy — roda no merge para main, depois do CI passar.
+#
+#   OIDC → artefatos do S3 → build arm64 → ECR → Lambda → smoke test
+#
+# Plano: docs/plans/14_deploy_aws.md §7.2
+
+name: Deploy
+
+on:
+  # `workflow_run` em vez de `push`: garante que o deploy só aconteça DEPOIS
+  # do CI ter passado nesse mesmo commit. Com `push`, os dois rodariam em
+  # paralelo e seria possível publicar uma imagem que falhou nos testes.
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+  # Permite redeploy manual sem um novo commit (ex.: rollback).
+  workflow_dispatch:
+
+# Nunca dois deploys ao mesmo tempo: duas execuções trocando a imagem da
+# mesma função produzem um estado final imprevisível. Aqui NÃO se cancela o
+# que está em andamento — interromper um deploy no meio é pior que esperar.
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-west-1
+  ECR_REPOSITORY: precificacao-airbnb
+  LAMBDA_FUNCTION: precificacao-airbnb
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # Só prossegue se o CI tiver CONCLUÍDO COM SUCESSO. Sem esta condição,
+    # `workflow_run` dispara também quando o CI falha.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Em workflow_run o checkout default é o do branch, não o do commit
+          # que disparou o CI. Fixar o SHA garante que a imagem publicada
+          # corresponde exatamente ao código testado.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Autenticar na AWS (OIDC, sem chave estática)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login no ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Baixar artefatos do S3
+        run: |
+          mkdir -p app/models
+          aws s3 cp s3://precificacao-airbnb-ams/models/v1/model.pkl     app/models/
+          aws s3 cp s3://precificacao-airbnb-ams/models/v1/artifacts.pkl app/models/
+
+      # A tag carrega o SHA do commit: dado um container em produção, dá para
+      # chegar ao código exato que o gerou. A política de imutabilidade do ECR
+      # garante que essa correspondência não possa ser desfeita depois.
+      - name: Definir a tag
+        id: tag
+        run: echo "valor=v1-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.valor }}
+          # Obrigatório — ver o comentário equivalente no ci.yml. Sem isto o
+          # manifesto vira OCI image index e o Lambda recusa a imagem.
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Atualizar a Lambda
+        run: |
+          IMAGEM="${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.valor }}"
+
+          aws lambda update-function-code \
+            --function-name "$LAMBDA_FUNCTION" \
+            --image-uri "$IMAGEM" \
+            --region "$AWS_REGION" >/dev/null
+
+          # Sem este wait, o smoke test rodaria contra a imagem ANTERIOR: a
+          # atualização é assíncrona e a função continua servindo a versão
+          # antiga até terminar. O deploy passaria testando o que não mudou.
+          aws lambda wait function-updated-v2 \
+            --function-name "$LAMBDA_FUNCTION" \
+            --region "$AWS_REGION"
+
+          echo "Lambda atualizada para $IMAGEM"
+
+      # O smoke test é o que separa "o deploy terminou" de "o deploy
+      # funcionou". Sem ele, uma imagem que sobe e quebra no load do modelo
+      # passaria como sucesso.
+      # O smoke test é o que separa "o deploy terminou" de "o deploy
+      # funcionou". Sem ele, uma imagem que sobe e quebra no load do modelo
+      # passaria como sucesso.
+      - name: Smoke test na Function URL
+        run: |
+          URL=$(aws lambda get-function-url-config \
+                  --function-name "$LAMBDA_FUNCTION" \
+                  --region "$AWS_REGION" \
+                  --query FunctionUrl --output text)
+
+          # A Function URL exige SigV4. Com OIDC as credenciais são
+          # temporárias, então o token de sessão é obrigatório na assinatura.
+          # Cold start de imagem grande leva ~25 s na primeira invocação.
+          curl -sS --max-time 120 --retry 2 --retry-delay 15 \
+            --aws-sigv4 "aws:amz:${AWS_REGION}:lambda" \
+            --user "${AWS_ACCESS_KEY_ID}:${AWS_SECRET_ACCESS_KEY}" \
+            -H "x-amz-security-token: ${AWS_SESSION_TOKEN}" \
+            -H 'content-type: application/json' \
+            "${URL}health" > /tmp/health.json
+
+          cat /tmp/health.json
+          python scripts/smoke_test.py < /tmp/health.json
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo "### Deploy"
+            echo ""
+            echo "| Item | Valor |"
+            echo "|---|---|"
+            echo "| Tag | \`${{ steps.tag.outputs.valor }}\` |"
+            echo "| Commit | \`${{ github.event.workflow_run.head_sha || github.sha }}\` |"
+            echo "| Resultado | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

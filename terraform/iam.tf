@@ -173,6 +173,9 @@ data "aws_iam_policy_document" "github_permissoes" {
       "lambda:UpdateFunctionCode",
       "lambda:GetFunction",
       "lambda:GetFunctionConfiguration",
+      # O smoke test descobre a Function URL em vez de recebê-la fixa: assim
+      # o workflow não precisa ser editado se a URL mudar.
+      "lambda:GetFunctionUrlConfig",
       "lambda:PublishVersion",
       "lambda:UpdateFunctionConfiguration",
     ]

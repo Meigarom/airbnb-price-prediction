@@ -1,0 +1,44 @@
+# Configuração do ruff — usada pelo CI (.github/workflows/ci.yml).
+#
+# Sem este arquivo o ruff roda com o conjunto default (E4, E7, E9, F), que
+# NÃO inclui E402. O efeito colateral é perverso: os comentários
+# `# noqa: E402` que protegem os imports feitos após `sys.path.insert`
+# passam a ser sinalizados como diretivas inúteis (RUF100), e a "correção"
+# óbvia seria removê-los — justamente os comentários que documentam por que
+# o import está fora de ordem.
+#
+# Habilitar E402 resolve na direção certa: a regra passa a existir, e as
+# diretivas voltam a ter função.
+
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort — ordem de imports
+    "UP",   # pyupgrade — sintaxe moderna
+    "B",    # bugbear — armadilhas comuns
+    "RUF",  # regras do próprio ruff
+]
+
+ignore = [
+    "E501",    # comprimento de linha: o projeto tem comentários longos em
+               # português explicando decisões, e quebrá-los piora a leitura
+    "RUF001",  # "caractere ambíguo" em string
+    "RUF002",  # idem, em docstring
+    "RUF003",  # idem, em comentário
+               # Os três sinalizam os sinais MATEMÁTICOS − (menos) e ×
+               # (multiplicação) usados nas fórmulas documentadas em
+               # português — `take_rate × diária × noites`, `ŷ·(1 − MAPE)`.
+               # É tipografia correta, não erro de digitação: trocar por
+               # ASCII pioraria o texto que descreve o modelo.
+]
+
+[lint.per-file-ignores]
+# Os notebooks e scripts de fixture fazem imports após ajustar sys.path.
+"tests/gerar_fixture.py" = ["E402"]
+
+[format]
+quote-style = "single"

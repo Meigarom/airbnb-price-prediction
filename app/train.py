@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import platform
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -32,11 +32,11 @@ from lightgbm import LGBMRegressor
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.data_preparation import (  # noqa: E402
+from app.data_preparation import (
     COLS_FLAGS,
     COLS_MONETARIAS,
-    DataPreparation,
     REGRAS_VALIDADE,
+    DataPreparation,
 )
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -230,8 +230,8 @@ def main() -> None:
     modelo = LGBMRegressor(**PARAMS_LGBM, random_state=RANDOM_STATE,
                            n_jobs=-1, verbose=-1)
     modelo.fit(X, y_log)
-    artefatos['n_treino'] = int(len(X))
-    artefatos['treinado_em'] = datetime.now(timezone.utc).isoformat()
+    artefatos['n_treino'] = len(X)
+    artefatos['treinado_em'] = datetime.now(UTC).isoformat()
     print(f'  modelo treinado em {len(X):,} anúncios'.replace(',', '.'))
 
     # Sanidade: o erro IN-SAMPLE é otimista por construção (15,6% na Etapa 10).
@@ -276,7 +276,9 @@ def main() -> None:
             mlflow.log_artifact(str(DIR_MODELOS / 'model.pkl'))
             mlflow.log_artifact(str(DIR_MODELOS / 'artifacts.pkl'))
         print('  MLflow: run registrada em mlruns/')
-    except Exception as exc:                                  # noqa: BLE001
+    # Amplo de propósito: o MLflow é registro, não o produto. Se ele cair, o
+    # treino não pode cair junto — os pickles já foram gravados.
+    except Exception as exc:
         print(f'  MLflow indisponível ({type(exc).__name__}) — pickles gravados')
 
     print('\n' + '=' * 70)

@@ -142,7 +142,10 @@ def predict(req: PredictRequest) -> PredictResponse:
         X = prep.transform(entrada)
     except ColunasAusentesError as exc:
         raise HTTPException(422, str(exc)) from exc
-    except Exception as exc:                                    # noqa: BLE001
+    # `except Exception` amplo é deliberado: qualquer falha na preparação vira
+    # um 500 descritivo em vez de derrubar o worker. O tipo da exceção vai na
+    # mensagem, então nada se perde no diagnóstico.
+    except Exception as exc:
         raise HTTPException(500, f'Falha na preparação: {type(exc).__name__}: {exc}') from exc
 
     status = prep.ultimo_status.reset_index(drop=True)
