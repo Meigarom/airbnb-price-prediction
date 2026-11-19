@@ -52,6 +52,43 @@ jobs:
       # Os artefatos NÃO estão no Git (vivem no S3), e sem eles 17 dos 19
       # testes falham — incluindo o de equivalência, que é o portão. Por isso
       # até o CI precisa de credencial AWS.
+      # O erro nativo do configure-aws-credentials quando o secret esta vazio
+      # ou malformado e "Not authorized to perform sts:AssumeRoleWithWebIdentity"
+      # -- identico ao de um provedor OIDC ausente ou de uma trust policy
+      # errada. Tres causas, uma mensagem so. Esta verificacao separa a mais
+      # banal das outras antes de gastar um ciclo de diagnostico.
+      - name: Conferir o secret AWS_DEPLOY_ROLE_ARN
+        env:
+          ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$ARN" ]; then
+            echo "::error::O secret AWS_DEPLOY_ROLE_ARN esta VAZIO ou nao existe."
+            echo "Configure em Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          # Espaco ou quebra de linha invisivel no inicio/fim: passa despercebido
+          # na tela do GitHub e quebra o AssumeRole. Detectado comparando o
+          # valor com ele mesmo sem espacos nas bordas.
+          LIMPO="$(printf '%s' "$ARN" | tr -d '[:space:]')"
+          if [ "$LIMPO" != "$ARN" ]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN contem espaco ou quebra de linha."
+            echo "Reedite o secret colando o ARN sem espacos nas bordas."
+            exit 1
+          fi
+
+          ESPERADO='^arn:aws:iam::[0-9]{12}:role/.+$'
+          if ! printf '%s' "$ARN" | grep -qE "$ESPERADO"; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN nao parece um ARN de role."
+            echo "Esperado: arn:aws:iam::<conta>:role/<nome>"
+            echo "Recebido: ${#ARN} caracteres, comecando por '$(printf '%.12s' "$ARN")...'"
+            echo "Causas comuns: colar o ARN do usuario ou do provedor OIDC,"
+            echo "colar so o nome da role, ou deixar espaco/quebra de linha."
+            exit 1
+          fi
+
+          echo "Formato do ARN OK (${#ARN} caracteres)."
+
       - name: Autenticar na AWS (OIDC, sem chave estática)
         uses: aws-actions/configure-aws-credentials@v4
         with:
