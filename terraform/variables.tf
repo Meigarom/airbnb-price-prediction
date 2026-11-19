@@ -97,9 +97,21 @@ variable "image_tag" {
 # ---------------------------------------------------------------------------
 
 variable "github_repo" {
-  description = "Repositório <owner>/<nome> autorizado a assumir a role de deploy via OIDC."
+  description = "Repositório <owner>/<nome> autorizado a assumir a role de deploy via OIDC. Mantido para documentação; a condição de confiança usa owner e nome separados, porque precisa intercalar curingas entre eles (ver iam.tf)."
   type        = string
   default     = "Meigarom/airbnb-price-prediction"
+}
+
+variable "github_repo_owner" {
+  description = "Dono do repositório, sem o nome. Separado de github_repo_name porque o `sub` do OIDC pode trazer um ID numérico logo após cada um (owner@123/repo@456), e a condição precisa de um curinga entre as duas partes."
+  type        = string
+  default     = "Meigarom"
+}
+
+variable "github_repo_name" {
+  description = "Nome do repositório, sem o dono."
+  type        = string
+  default     = "airbnb-price-prediction"
 }
 
 variable "github_branch" {

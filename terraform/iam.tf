@@ -118,12 +118,40 @@ data "aws_iam_policy_document" "github_confianca" {
 
     # ESTA condição é o controle de acesso real. Sem ela, QUALQUER repositório
     # do GitHub — de qualquer pessoa no mundo — poderia assumir esta role.
-    # `sub` é restrito a um repositório e a um branch específicos, então um
-    # PR vindo de fork não consegue fazer deploy.
+    #
+    # StringLike, e não StringEquals, por uma razão concreta: este repositório
+    # tem ligada a opção de subject claim "Include enterprise/organization and
+    # repository IDs", que faz o GitHub emitir IDs numéricos junto dos nomes.
+    # O CloudTrail registrou o `sub` real recebido pela AWS:
+    #
+    #   repo:Meigarom@9415810/airbnb-price-prediction@1454587765:ref:refs/heads/main
+    #
+    # e não a forma documentada `repo:<owner>/<repo>:ref:...`. Com igualdade
+    # literal nenhum dos dois valores casava, e o AssumeRole era negado com
+    # "Not authorized to perform sts:AssumeRoleWithWebIdentity" — mensagem que
+    # não diz que o problema é o formato do `sub`.
+    #
+    # Os `@*` cobrem o sufixo de ID esteja a opção ligada ou desligada, então a
+    # política continua válida se a configuração do repositório mudar.
+    #
+    # São dois valores porque o `sub` muda conforme o evento:
+    #   push / workflow_run na main → ...:ref:refs/heads/main
+    #   pull_request                → ...:pull_request
+    #
+    # O CI roda em `pull_request` e precisa baixar os artefatos do S3 (sem
+    # eles, 17 dos 19 testes falham). Sem a segunda entrada o CI passaria na
+    # main e falharia em todo PR — justamente onde o portão de equivalência
+    # importa. PR vindo de fork não é risco aqui: o GitHub não entrega secrets
+    # a workflows disparados por fork, então o ARN nunca chega lá.
     condition {
-      test     = "StringEquals"
+      test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:ref:refs/heads/${var.github_branch}"]
+      values = [
+        "repo:${var.github_repo_owner}@*/${var.github_repo_name}@*:ref:refs/heads/${var.github_branch}",
+        "repo:${var.github_repo_owner}/${var.github_repo_name}:ref:refs/heads/${var.github_branch}",
+        "repo:${var.github_repo_owner}@*/${var.github_repo_name}@*:pull_request",
+        "repo:${var.github_repo_owner}/${var.github_repo_name}:pull_request",
+      ]
     }
   }
 }
