@@ -36,6 +36,7 @@ RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements-lambda.txt
 COPY app/__init__.py          ${LAMBDA_TASK_ROOT}/app/
 COPY app/data_preparation.py  ${LAMBDA_TASK_ROOT}/app/
 COPY app/schemas.py           ${LAMBDA_TASK_ROOT}/app/
+COPY app/metricas.py          ${LAMBDA_TASK_ROOT}/app/
 COPY app/api.py               ${LAMBDA_TASK_ROOT}/app/
 COPY app/lambda_handler.py    ${LAMBDA_TASK_ROOT}/app/
 

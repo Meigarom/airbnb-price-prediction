@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 
+from app import metricas
 from app.data_preparation import ColunasAusentesError, DataPreparation
 from app.schemas import HealthResponse, PredictRequest, PredictResponse
 
@@ -180,6 +181,17 @@ def predict(req: PredictRequest) -> PredictResponse:
         saida.loc[idx, 'U'] = np.round(sup, 2)
         saida.loc[idx, 'zona'] = zona
         saida.loc[idx, 'uplift'] = np.round(uplift, 2)
+
+    # Métricas de drift (plano 14 §3.5). Em produção não há hold-out, então
+    # a degradação do MAPE é invisível; estas três detectam mudança de regime,
+    # que é o sintoma observável. `emitir` nunca levanta exceção — medir não
+    # pode derrubar a predição.
+    metricas.emitir(
+        price_estimate=saida.loc[valido, 'price_estimate'].to_numpy() if valido.any() else None,
+        zonas=saida.loc[valido, 'zona'].to_numpy() if valido.any() else None,
+        n_input=n_input,
+        n_invalido=int((~valido).sum()),
+    )
 
     # NaN não é JSON válido; None é.
     registros = saida.replace({np.nan: None}).to_dict(orient='records')
