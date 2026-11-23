@@ -212,10 +212,20 @@ data "aws_iam_policy_document" "github_permissoes" {
 
   # Smoke test pós-deploy: o workflow chama /health na Function URL, e a
   # chamada precisa ser assinada (auth AWS_IAM).
+  #
+  # São DUAS ações, não uma. Invocar por Function URL exige
+  # `lambda:InvokeFunctionUrl` E `lambda:InvokeFunction` — a primeira autoriza
+  # o uso do endpoint, a segunda a execução da função. Com apenas a primeira,
+  # a resposta é 403 Forbidden vinda do próprio endpoint, antes de a função
+  # rodar; o deploy publica a imagem com sucesso e só o smoke test falha, o
+  # que torna o sintoma enganoso: parece problema da aplicação, e é permissão.
   statement {
-    sid       = "InvocarParaSmokeTest"
-    effect    = "Allow"
-    actions   = ["lambda:InvokeFunctionUrl"]
+    sid    = "InvocarParaSmokeTest"
+    effect = "Allow"
+    actions = [
+      "lambda:InvokeFunctionUrl",
+      "lambda:InvokeFunction",
+    ]
     resources = [aws_lambda_function.api.arn]
   }
 
