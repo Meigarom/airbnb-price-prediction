@@ -147,6 +147,34 @@ com `price_estimate: null` e um `status` explicando o motivo.
 pytest tests/ -v
 ```
 
+### Página de demonstração (Streamlit)
+
+Protótipo local que chama a API **na AWS** — serve para ver o deploy funcionando de
+forma visual e para mostrar o modelo a quem não lê JSON.
+
+```bash
+streamlit run app/app.py
+```
+
+Exige credencial AWS configurada (`aws configure --profile airbnb`): a Function URL
+usa autenticação IAM, e a assinatura SigV4 é feita por `botocore`.
+
+O formulário expõe os 30 campos que o pipeline exige, distribuídos em abas, com as
+medianas da base como valor inicial — dá para gerar uma predição mexendo só na
+primeira aba. Dois modos: *"quanto devo cobrar?"* (preço justo + faixa) e *"meu preço
+está certo?"* (acrescenta a zona do recomendador).
+
+A página mostra a **faixa** com o mesmo peso visual do preço estimado. Com erro médio
+de 22,21%, destacar só o número seria enganoso. Também exibe, no painel *"de onde veio
+esta resposta"*, o endpoint, a latência e a versão do modelo — é o que distingue uma
+resposta vinda da nuvem de um cálculo local.
+
+Os defaults vêm de `app/defaults_app.py`, gerado da base:
+
+```bash
+python -m app.gerar_defaults
+```
+
 ### Construir a imagem de produção
 
 Os artefatos (`app/models/*.pkl`) **não são versionados** — vivem no S3 e são
